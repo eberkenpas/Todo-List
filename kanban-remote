@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Launch Todo-List Kanban on svc-worker-07
+# Usage: ./kanban-remote or just `kanban` if symlinked
+
+# Configuration
+REMOTE_HOST="18.223.15.186"
+REMOTE_USER="ubuntu"
+REMOTE_PATH="~/pyDev/Todo-List"
+SSH_KEY="$HOME/.ssh/Heligoland14-.pem"
+
+# SSH in and run the TUI
+ssh -t -i "${SSH_KEY}" "${REMOTE_USER}@${REMOTE_HOST}" "cd ${REMOTE_PATH} && ./todo"

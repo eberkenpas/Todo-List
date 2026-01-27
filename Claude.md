@@ -24,7 +24,8 @@ Designed with multi-user web extension in mind:
 ### File Structure
 ```
 Todo-List/
-├── todo              # Launcher script
+├── todo              # Local launcher script
+├── kanban-remote     # Remote launcher (SSH into EC2)
 ├── tui.py            # Interactive TUI (main interface)
 ├── main.py           # CLI interface (alternative)
 ├── models.py         # Data layer (CRUD operations)
@@ -90,6 +91,11 @@ Todo-List/
   - Escape cancels and returns to original position
 - Created launcher script to avoid venv activation hassle
 - Discussed future architecture: EC2 hosting both web and TUI
+- Deployed to EC2 instance (svc-worker-07)
+  - Created `kanban-remote` script for SSH access
+  - Configured SSH key authentication
+  - Symlinked to `/usr/local/bin/kanban` for easy access
+  - Can now run `kanban` from anywhere to access remote board
 
 ## Design Decisions
 
