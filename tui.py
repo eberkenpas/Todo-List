@@ -56,6 +56,47 @@ class AddTaskModal(ModalScreen[str | None]):
         self.dismiss(None)
 
 
+class EditTaskModal(ModalScreen[str | None]):
+    """Modal dialog for editing a task title."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+    ]
+
+    def __init__(self, task_title: str):
+        super().__init__()
+        self.task_title = task_title
+
+    def compose(self) -> ComposeResult:
+        with Container(id="edit-dialog"):
+            yield Label("Edit Task", id="edit-title")
+            yield Input(
+                placeholder="Enter task title...",
+                id="title-input",
+                value=self.task_title
+            )
+            with Horizontal(id="edit-buttons"):
+                yield Button("Save", variant="primary", id="btn-save")
+                yield Button("Cancel", variant="default", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#title-input", Input).focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-save":
+            title = self.query_one("#title-input", Input).value.strip()
+            self.dismiss(title if title else None)
+        else:
+            self.dismiss(None)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        title = event.value.strip()
+        self.dismiss(title if title else None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
 class DeleteConfirmModal(ModalScreen[bool]):
     """Modal dialog for confirming task deletion."""
 
@@ -106,13 +147,17 @@ class KanbanColumn(Static):
         col_name = self.column.name
         styles = COLUMN_STYLES.get(col_name, COLUMN_STYLES["Todo"])
 
+        # Calculate max length based on column width
+        # Account for panel borders (2), padding, and prefix characters (5 for "→ ◆ " or "> ● ")
+        available_width = self.size.width - 7 if self.size.width > 15 else 25
+        max_len = max(15, available_width)  # Minimum 15 chars
+
         # Build task list
         lines = []
 
         # If we're showing the moving task preview at the top of this column
         if self.show_moving_task and self.moving_task:
             display = f"→ ◆ {self.moving_task.title}"
-            max_len = 25
             if len(display) > max_len:
                 display = display[:max_len-3] + "..."
             lines.append(Text(display, style=styles["moving"]))
@@ -125,7 +170,6 @@ class KanbanColumn(Static):
                 if self.moving_task and task.id == self.moving_task.id:
                     # Show it dimmed in original position
                     display = f"  ○ {task.title}"
-                    max_len = 25
                     if len(display) > max_len:
                         display = display[:max_len-3] + "..."
                     lines.append(Text(display, style="dim strike"))
@@ -136,9 +180,8 @@ class KanbanColumn(Static):
                 title = task.title
 
                 # Truncate if needed
-                max_len = 25
-                if len(title) > max_len:
-                    title = title[:max_len-3] + "..."
+                if len(title) > max_len - 5:  # Account for prefix and bullet
+                    title = title[:max_len-8] + "..."
 
                 display = f"{prefix} ● {title}"
 
@@ -450,6 +493,37 @@ class TodoApp(App):
         margin: 0 1;
     }
 
+    #edit-dialog {
+        width: 60;
+        height: auto;
+        padding: 1 2;
+        background: $surface;
+        border: tall $primary;
+    }
+
+    #edit-title {
+        text-align: center;
+        text-style: bold;
+        color: $primary;
+        padding-bottom: 1;
+        width: 100%;
+    }
+
+    #title-input {
+        width: 100%;
+        margin-bottom: 1;
+    }
+
+    #edit-buttons {
+        width: 100%;
+        height: auto;
+        align: center middle;
+    }
+
+    #edit-buttons Button {
+        margin: 0 1;
+    }
+
     #status-bar {
         dock: bottom;
         height: 1;
@@ -462,6 +536,7 @@ class TodoApp(App):
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("a", "add_task", "Add"),
+        Binding("e", "edit_task", "Edit"),
         Binding("d", "delete_task", "Delete"),
         Binding("enter", "confirm", "Select/Place"),
         Binding("escape", "cancel", "Cancel", show=False),
@@ -505,7 +580,7 @@ class TodoApp(App):
                 status = f"● {task.title}"
                 if task.due_date:
                     status += f" (due: {task.due_date})"
-                status += " │ Enter: pick up │ A: add │ D: delete │ Q: quit"
+                status += " │ Enter: pick up │ A: add │ E: edit │ D: delete │ Q: quit"
             else:
                 status = "No tasks │ Press 'A' to add a task"
 
@@ -562,6 +637,29 @@ class TodoApp(App):
                 self.update_status(f"Added: {title}")
 
         self.push_screen(AddTaskModal(), handle_result)
+
+    def action_edit_task(self) -> None:
+        """Edit the title of the current task."""
+        board = self.query_one(KanbanBoard)
+
+        # Don't allow editing while moving
+        if board.is_moving():
+            self.update_status("Finish moving first (Enter or Esc)")
+            return
+
+        task = board.get_current_task()
+        if not task:
+            self.update_status("No task to edit")
+            return
+
+        def handle_result(new_title: str | None) -> None:
+            if new_title:
+                models.update_task(task.id, title=new_title)
+                board.refresh_data()
+                board.rebuild()
+                self.update_status(f"Updated: {new_title}")
+
+        self.push_screen(EditTaskModal(task.title), handle_result)
 
     def action_delete_task(self) -> None:
         board = self.query_one(KanbanBoard)
