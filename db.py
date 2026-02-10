@@ -16,11 +16,15 @@ def get_connection() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    """Initialize the database with schema if it doesn't exist."""
-    if DB_PATH.exists():
+    """Initialize the database with schema if tables don't exist."""
+    conn = get_connection()
+    cursor = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='columns'"
+    )
+    if cursor.fetchone() is not None:
+        conn.close()
         return
 
-    conn = get_connection()
     with open(SCHEMA_PATH) as f:
         conn.executescript(f.read())
     conn.commit()
