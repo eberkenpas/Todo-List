@@ -535,7 +535,7 @@ class TodoApp(App):
 
     #task-detail {
         dock: bottom;
-        height: 1;
+        height: 2;
         background: $surface-darken-1;
         color: $text;
         padding: 0 1;
