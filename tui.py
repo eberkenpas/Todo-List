@@ -241,6 +241,12 @@ class KanbanBoard(Static):
             self.tasks_by_column[col.id] = models.get_tasks_by_column(col.id)
             if col.id not in self.cursor_positions:
                 self.cursor_positions[col.id] = 0
+            # Clamp cursor to valid range
+            tasks = self.tasks_by_column[col.id]
+            if tasks:
+                self.cursor_positions[col.id] = min(self.cursor_positions[col.id], len(tasks) - 1)
+            else:
+                self.cursor_positions[col.id] = 0
 
     def render(self) -> Text:
         return Text("")
@@ -527,6 +533,14 @@ class TodoApp(App):
         margin: 0 1;
     }
 
+    #task-detail {
+        dock: bottom;
+        height: 1;
+        background: $surface-darken-1;
+        color: $text;
+        padding: 0 1;
+    }
+
     #status-bar {
         dock: bottom;
         height: 1;
@@ -563,6 +577,7 @@ class TodoApp(App):
     def compose(self) -> ComposeResult:
         yield Header()
         yield KanbanBoard()
+        yield Static("", id="task-detail")
         yield Static("", id="status-bar")
         yield Footer()
 
@@ -570,21 +585,32 @@ class TodoApp(App):
         self.update_status()
 
     def update_status(self, message: str = "") -> None:
-        """Update the status bar."""
+        """Update the status bar and task detail bar."""
         board = self.query_one(KanbanBoard)
+        task = board.get_current_task()
 
+        # Task detail bar — full task info
+        if task:
+            detail = f"● {task.title}"
+            if task.description:
+                detail += f" — {task.description}"
+            if task.due_date:
+                detail += f"  (due: {task.due_date})"
+            priority_labels = {1: "low", 2: "med", 3: "high"}
+            detail += f"  [{priority_labels.get(task.priority, '?')}]"
+        else:
+            detail = ""
+        self.query_one("#task-detail", Static).update(detail)
+
+        # Status bar — commands/messages
         if message:
             status = message
         elif board.is_moving():
-            task = board.moving_task
-            status = f"Moving: {task.title} │ ←→ choose column │ Enter: place │ Esc: cancel"
+            moving = board.moving_task
+            status = f"Moving: {moving.title} │ ←→ choose column │ Enter: place │ Esc: cancel"
         else:
-            task = board.get_current_task()
             if task:
-                status = f"● {task.title}"
-                if task.due_date:
-                    status += f" (due: {task.due_date})"
-                status += " │ Enter: pick up │ A: add │ E: edit │ D: delete │ Q: quit"
+                status = "Enter: pick up │ A: add │ E: edit │ D: delete │ X: export │ Q: quit"
             else:
                 status = "No tasks │ Press 'A' to add a task"
 
