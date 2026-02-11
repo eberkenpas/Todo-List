@@ -8,6 +8,9 @@ from textual.binding import Binding
 from rich.text import Text
 from rich.panel import Panel
 
+from datetime import date
+from pathlib import Path
+
 import db
 import models
 
@@ -544,6 +547,7 @@ class TodoApp(App):
         Binding("right", "move_right", "→", show=False),
         Binding("up", "move_up", "↑", show=False),
         Binding("down", "move_down", "↓", show=False),
+        Binding("x", "export_column", "eXport"),
         Binding("h", "move_left", "←", show=False),
         Binding("l", "move_right", "→", show=False),
         Binding("k", "move_up", "↑", show=False),
@@ -680,6 +684,28 @@ class TodoApp(App):
                 self.update_status("Task deleted")
 
         self.push_screen(DeleteConfirmModal(task.title), handle_result)
+
+    def action_export_column(self) -> None:
+        """Export the current column's tasks to a dated text file."""
+        board = self.query_one(KanbanBoard)
+
+        if board.is_moving():
+            self.update_status("Finish moving first (Enter or Esc)")
+            return
+
+        col = board.columns[board.active_column]
+        tasks = board.tasks_by_column.get(col.id, [])
+
+        datecode = date.today().strftime("%Y-%m-%d")
+        filename = f"{datecode}-{col.name}.md"
+        filepath = Path(__file__).parent / filename
+
+        lines = [f"{col.name} - {datecode}", "=" * 30, ""]
+        for task in tasks:
+            lines.append(f"- {task.title}")
+
+        filepath.write_text("\n".join(lines) + "\n")
+        self.update_status(f"Exported {len(tasks)} tasks to {filename}")
 
 
 def main():
