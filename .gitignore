@@ -2,6 +2,7 @@
 *.db
 
 # Exported task lists
+*.txt
 ????-??-??-*.md
 
 # Python
